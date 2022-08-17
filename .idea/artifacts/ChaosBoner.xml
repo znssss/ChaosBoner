@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact build-on-make="true" name="ChaosBoner">
+    <output-path>$USER_HOME$/EpicBot/scripts</output-path>
+    <root id="root">
+      <element id="module-output" name="ChoasBoner" />
+    </root>
+  </artifact>
+</component>
