@@ -134,7 +134,6 @@ public class ChaosBoner extends LoopScript {
         } else if(currentLocation == "ALTER" && !getAPIContext().inventory().contains(526)){
             suicide();
         }
-
         return 600;
     }
 
