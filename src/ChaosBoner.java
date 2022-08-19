@@ -1,4 +1,3 @@
-import com.epicbot.api.i.a.v.A;
 import com.epicbot.api.shared.APIContext;
 import com.epicbot.api.shared.GameType;
 import com.epicbot.api.shared.entity.ItemWidget;
@@ -22,11 +21,17 @@ public class ChaosBoner extends LoopScript {
 
     private Area ALTER = new Area(2948, 3819, 2949, 3822);
     private Area LAVA_MAZE = new Area(3022, 3832, 3036, 3846);
-    private Area LAVA_MAZE_SOUTH = new Area(3017, 3820, 3030, 3832);
-    private Area CHAOS_FANATIC = new Area(2975, 3841, 2984, 3851);
-    private Area LUMBRIDGE = new Area(3226, 3211, 3217, 3277);
+    private Area LAVA_MAZE_SOUTH = new Area(3021, 3823, 3016, 3818);
+    private Area CHAOS_FANATIC = new Area(2978, 3844, 2985, 3851);
+    private Area LUMBRIDGE = new Area(3217, 3210, 3226, 3228);
 
     private String currentLocation = "";
+    private String prevLocation = "";
+
+    private int boneId = 536;
+    private int bonesPerInv = 27;
+
+    private int loopSpeed = 600;
 
     public String updateLocation(){
         if(LUMBRIDGE.contains(getAPIContext().localPlayer().getLocation())){
@@ -47,10 +52,10 @@ public class ChaosBoner extends LoopScript {
 
     private boolean doesNeedsBones(){
         System.out.println("Checking if needs bones");
-        if(getAPIContext().inventory().contains(526) && getAPIContext().inventory().contains(setBurningAmmyId())){
-            if(getAPIContext().inventory().getCount(526) == 2){
+        if(getAPIContext().inventory().contains(boneId) && getAPIContext().inventory().contains(setBurningAmmyId())){
+            if(getAPIContext().inventory().getCount(boneId) == bonesPerInv){
                 return false;
-            } else if (getAPIContext().inventory().getCount(526) != 2){
+            } else if (getAPIContext().inventory().getCount(boneId) != bonesPerInv){
                 return true;
             }
         }
@@ -71,70 +76,100 @@ public class ChaosBoner extends LoopScript {
             } else if(getAPIContext().bank().contains(21175)){
                 getAPIContext().bank().withdraw(1, 21175);
             }
-            getAPIContext().bank().withdraw(2, 526);
-        } else {
-            getAPIContext().bank().withdraw(2, 526);
         }
-
-        if(getAPIContext().bank().isOpen()){
-            getAPIContext().bank().close();
-        }
+        getAPIContext().bank().withdraw(bonesPerInv, boneId);
+        getAPIContext().bank().close();
     }
 
     private void useBones(){
         SceneObject alter = getAPIContext().objects().query().id(411).results().nearest();
         System.out.println("Using Bones on alter");
-        getAPIContext().inventory().getItem(526).interact("Use");
+        getAPIContext().inventory().getItem(boneId).interact("Use");
         alter.click();
+        System.out.println("Sleeping till all bones gone or level up");
+        Time.sleep(20000, () -> !getAPIContext().inventory().contains(boneId) || getAPIContext().dialogues().isDialogueOpen());
     }
 
     private int setBurningAmmyId(){
         return getAPIContext().inventory().getItemAt(0).getId();
     }
 
-    private void travelToAlter(){
-        if(currentLocation != "ALTER" && !doesNeedsBones()){
-            ItemWidget amulet = getAPIContext().inventory().getItem(setBurningAmmyId());
+    private void travelToWilderness(){
+        ItemWidget amulet = getAPIContext().inventory().getItem(setBurningAmmyId());
+        if(currentLocation == "LUMBRIDGE" && !doesNeedsBones() && !getAPIContext().dialogues().isDialogueOpen()) {
+            System.out.println("Rubbing ammy");
             amulet.interact("Rub");
-            Time.sleep(5000, () -> getAPIContext().dialogues().isDialogueOpen());
+        } else if(getAPIContext().dialogues().isDialogueOpen() && getAPIContext().dialogues().hasOptionContaining("Lava")){
+            System.out.println("Selecting Lava Maze");
             getAPIContext().dialogues().selectOption(3);
-            Time.sleep(5000, () -> getAPIContext().dialogues().hasOption("Okay, teleport to level 41 Wilderness."));
+        } else if(getAPIContext().dialogues().isDialogueOpen() && getAPIContext().dialogues().hasOptionContaining("Okay")){
+            System.out.println("Selecting Okay");
             getAPIContext().dialogues().selectOption(1);
-            System.out.println("Sleeping till in wilderness");
-            Time.sleep(10000, () -> getAPIContext().localPlayer().isInWilderness());
-            System.out.println("Walking South");
-            getAPIContext().webWalking().walkTo(LAVA_MAZE_SOUTH.getRandomTile());
-            System.out.println("Arrived South");
-            Time.sleep(10000, () -> !getAPIContext().localPlayer().isMoving());
-            System.out.println("Walking to ALTER");
-            getAPIContext().webWalking().walkTo(ALTER.getRandomTile());
-        } else {
-            return;
         }
     }
 
+    private void travelSouth(){
+        System.out.println("Arrived at Lava Maze, running south");
+        getAPIContext().webWalking().walkTo(LAVA_MAZE_SOUTH.getRandomTile());
+    }
+
+    private void travelToAlter(){
+        System.out.println("Walking to ALTER");
+        getAPIContext().webWalking().walkTo(ALTER.getRandomTile());
+    }
+
     private void suicide(){
-        System.out.println("An hero");
+        System.out.println("You are an hero " + getAPIContext().client().getUsername());
         getAPIContext().webWalking().walkTo(CHAOS_FANATIC.getRandomTile());
+    }
+
+    private void recoverBadWebWalk(){
+        System.out.println("Recovering from bad web walk");
+        if(prevLocation == "LUMBRIDGE"){
+            travelToAlter();
+        } else if(prevLocation == "LAVA_MAZE" && getAPIContext().inventory().contains(boneId)){
+            travelToAlter();
+        } else if(prevLocation == "LAVA_MAZE" && !getAPIContext().inventory().contains(boneId)) {
+            suicide();
+        }
+        else if(prevLocation == "ALTER" && getAPIContext().inventory().contains(boneId)){
+            travelToAlter();
+        } else if(prevLocation == "ALTER" && !getAPIContext().inventory().contains(boneId)){
+            suicide();
+        }
     }
 
     @Override
     protected int loop() {
+        System.out.println("Current loc: " + currentLocation);
+        System.out.println("Prev loc: " + prevLocation);
         updateLocation();
         if(currentLocation == "LUMBRIDGE" && doesNeedsBones()){
+            prevLocation = "ALTER";
             bankForBones();
-        } else if (currentLocation == "LUMBRIDGE" && !doesNeedsBones()) {
+        } else if (currentLocation == "LUMBRIDGE" && !doesNeedsBones() && !getAPIContext().localPlayer().isAnimating()) {
+            prevLocation = "CHAOS_FANATIC";
+            getAPIContext().bank().close();
+            travelToWilderness();
+        } else if(getAPIContext().localPlayer().isInWilderness() && currentLocation == "LAVA_MAZE"){
+            prevLocation = "LUMBRIDGE";
+            travelSouth();
+        } else if(getAPIContext().localPlayer().isInWilderness() && currentLocation == "LAVA_MAZE_SOUTH"){
+            prevLocation = "LAVA_MAZE";
             travelToAlter();
-        }
-
-        if(currentLocation == "ALTER" && getAPIContext().inventory().contains(526)){
+        } else if(currentLocation == "ALTER" && getAPIContext().inventory().contains(boneId)){
+            prevLocation = "LAVA_MAZE_SOUTH";
+//            loopSpeed = 50;
             useBones();
-            System.out.println("Sleeping till all bones gone or level up");
-            Time.sleep(999999, () -> !getAPIContext().inventory().contains(526) || getAPIContext().dialogues().isDialogueOpen());
-        } else if(currentLocation == "ALTER" && !getAPIContext().inventory().contains(526)){
+        } else if(currentLocation == "ALTER" && !getAPIContext().inventory().contains(boneId)){
+//            loopSpeed = 600;
             suicide();
+        } else if(currentLocation == "CHAOS_FANATIC"){
+            prevLocation = "ALTER";
+        } else if(currentLocation == "TRAVELLING" && !getAPIContext().localPlayer().isAnimating()){
+            recoverBadWebWalk();
         }
-        return 600;
+        return loopSpeed;
     }
 
     @Override
